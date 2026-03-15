@@ -23,7 +23,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 
 EMOTION_MODEL_PATH = os.path.join(MODEL_DIR, "emotion_cnn.keras")
-LABELS_PATH = os.path.join(MODEL_DIR, "emotion_cnn.labels.json")
+LABELS_PATH = os.path.join(MODEL_DIR, "emotion_labels.json")
 RECOMMENDER_PATH = os.path.join(MODEL_DIR, "song_recommender.joblib")
 ENCODER_PATH = os.path.join(MODEL_DIR, "emotion_encoder.joblib")
 CASCADE_PATH = os.path.join(BASE_DIR, "haarcascade_frontalface_default.xml")

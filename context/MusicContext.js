@@ -103,7 +103,7 @@ export const MusicProvider = ({ children }) => {
       // Create and play new sound
       const { sound: newSound } = await Audio.Sound.createAsync(
         {
-          uri: `http://192.168.18.240:3000/api/audio/play/${encodeURIComponent(song.filename)}`,
+          uri: `http://192.168.1.103:3000/api/audio/play/${encodeURIComponent(song.filename)}`,
         },
         { shouldPlay: true, volume: 1.0 },
         (status) => {
@@ -197,7 +197,7 @@ export const MusicProvider = ({ children }) => {
         // For logged-in users, save to backend
         try {
           const response = await fetch(
-            "http://192.168.18.240:3000/api/recently-played",
+            "http://192.168.1.103:3000/api/recently-played",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -256,7 +256,7 @@ export const MusicProvider = ({ children }) => {
         // Load from backend for logged-in users
         try {
           const response = await fetch(
-            `http://192.168.18.240:3000/api/recently-played/${userId}`,
+            `http://192.168.1.103:3000/api/recently-played/${userId}`,
           );
 
           if (response.ok) {
@@ -327,7 +327,7 @@ export const MusicProvider = ({ children }) => {
         // For logged-in users, remove from backend
         try {
           await fetch(
-            `http://192.168.18.240:3000/api/recently-played/${userId}/${filename}`,
+            `http://192.168.1.103:3000/api/recently-played/${userId}/${filename}`,
             {
               method: "DELETE",
             },

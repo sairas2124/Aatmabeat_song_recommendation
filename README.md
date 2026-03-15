@@ -1,50 +1,51 @@
-# Welcome to your Expo app 👋
+# 6th Semester Dual Project
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This project was developed as a **6th Semester Dual (Group) Project** as part of our university coursework.  
+The goal of this project is to demonstrate practical knowledge of **modern software development, version control, and containerized deployment**.
 
-## Get started
+The application follows a structured architecture and was built using modern development tools and frameworks to simulate a real-world development workflow.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Project Objectives
 
-2. Start the app
+- Develop a functional application using modern programming technologies
+- Practice collaborative development in a **dual team environment**
+- Implement **clean project architecture and modular coding**
+- Use **GitHub for version control and collaboration**
+- Containerize the application using **Docker for deployment**
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## Technologies Used
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+**Frontend**
+- React / Expo
+- JavaScript
+- HTML
+- CSS
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+**Backend**
+- API integration
 
-## Get a fresh project
+**Tools & Platforms**
+- Git
+- GitHub
+- Docker
+- VS Code
 
-When you're ready, run:
+---
 
-```bash
-npm run reset-project
-```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Contributors
 
-## Learn more
+This project was developed as a **dual group project** by:
 
-To learn more about developing your project with Expo, look at the following resources:
+- Sairas Pulami 
+- Binod Shrestha 
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+## Purpose
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This repository is maintained for **academic and educational purposes** as part of the **6th 

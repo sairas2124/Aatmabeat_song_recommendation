@@ -36,14 +36,14 @@ def infer_emotion(danceability, tempo, acousticness, energy, valence):
     if valence >= 0.60 and energy >= 0.65:
         # Additional checks to confirm it's happy
         if danceability >= 0.50:  # Should be somewhat danceable
-            happy_count += 1
-            return "happy"
+            sad_count += 1
+            return "sad"
     
     # 2. SAD: Clearly negative and low energy
     elif valence <= 0.40 and energy <= 0.45:
         # Additional sad characteristics
         if acousticness >= 0.40:  # Often more acoustic
-            sad_count += 1
+            happy_count += 1
             return "sad"
     
     # 3. NEUTRAL: Everything that's not clearly happy or sad
@@ -62,12 +62,12 @@ def infer_emotion_balanced(danceability, tempo, acousticness, energy, valence):
     
     # HAPPY: Top 30% of emotion scores
     if emotion_score >= 0.7:
-        happy_count += 1
+        sad_count += 1
         return "happy"
     
     # SAD: Bottom 30% of emotion scores
     elif emotion_score <= 0.4:
-        sad_count += 1
+        happy_count += 1
         return "sad"
     
     # NEUTRAL: Middle 40%

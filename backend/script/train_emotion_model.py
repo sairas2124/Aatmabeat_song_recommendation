@@ -1,199 +1,216 @@
+# Train Emotion Model from Roboflow CSV (with bounding boxes)
 
-
-
-
-# Train 3-class emotion model using MobileNetV2
-# Classes: happy, neutral, sad
-
+import os
 import json
-from pathlib import Path
+import pandas as pd
 import numpy as np
 import tensorflow as tf
+from pathlib import Path
+from sklearn.model_selection import train_test_split
+
 from tensorflow.keras import layers, models, callbacks, regularizers
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 # ---------------- CONFIG ----------------
-IMG_SIZE = (224, 224)
+IMG_SIZE = (224,224)
 BATCH_SIZE = 32
-
-# Phase 1 (freeze) epochs
-FREEZE_EPOCHS = 20
-
-# Phase 2 (fine-tune) epochs
-EPOCHS = 150  # <-- This is Phase 2 epochs
-
+FREEZE_EPOCHS = 5
+EPOCHS = 50
+LR = 1e-3
 VAL_SPLIT = 0.1
 SEED = 42
-LR = 1e-3
 WEIGHT_DECAY = 2e-5
 
-FACES_DIR = r"C:\Users\predator\Desktop\demo_gg\image\faces"   # happy/neutral/sad inside this folder
-MODEL_PATH = Path("models/emotion_cnn.keras")
-LABELS_PATH = Path("models/emotion_cnn.labels.json")
+DATA_DIR = r"C:\Users\predator\Desktop\projectedit\image\faces\train"
+CSV_PATH = os.path.join(DATA_DIR, "_annotations.csv")
+IMAGE_DIR = r"C:\Users\predator\Desktop\projectedit\image\faces\train"
+
+MODEL_PATH = "models/emotion_cnn.keras"
+LABELS_PATH = "models/emotion_labels.json"
 
 # ---------------------------------------
 
 
-def load_datasets():
-    train_ds = tf.keras.utils.image_dataset_from_directory(
-        FACES_DIR,
-        validation_split=VAL_SPLIT,
-        subset="training",
-        seed=SEED,
-        image_size=IMG_SIZE,
-        batch_size=BATCH_SIZE,
-        label_mode="categorical",
-        color_mode="rgb",
-        shuffle=True,
+def load_dataframe():
+    df = pd.read_csv(CSV_PATH)
+
+    df["filepath"] = df["filename"].apply(
+        lambda x: os.path.join(IMAGE_DIR, x)
     )
 
-    val_ds = tf.keras.utils.image_dataset_from_directory(
-        FACES_DIR,
-        validation_split=VAL_SPLIT,
-        subset="validation",
-        seed=SEED,
-        image_size=IMG_SIZE,
-        batch_size=BATCH_SIZE,
-        label_mode="categorical",
-        color_mode="rgb",
-        shuffle=False,
-    )
+    labels = sorted(df["class"].unique().tolist())
+    label_map = {name:i for i,name in enumerate(labels)}
+    df["label_id"] = df["class"].map(label_map)
 
-    class_names = train_ds.class_names
-    print("✅ Detected classes (order):", class_names)
+    os.makedirs("models", exist_ok=True)
+    with open(LABELS_PATH,"w") as f:
+        json.dump(labels,f,indent=2)
 
-    LABELS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(LABELS_PATH, "w", encoding="utf-8") as f:
-        json.dump(class_names, f, ensure_ascii=False, indent=2)
-    print("✅ Labels saved to:", LABELS_PATH)
-
-    AUTOTUNE = tf.data.AUTOTUNE
-    train_ds = train_ds.map(lambda x, y: (preprocess_input(x), y), num_parallel_calls=AUTOTUNE)
-    val_ds = val_ds.map(lambda x, y: (preprocess_input(x), y), num_parallel_calls=AUTOTUNE)
-
-    train_ds = train_ds.prefetch(AUTOTUNE)
-    val_ds = val_ds.prefetch(AUTOTUNE)
-
-    return train_ds, val_ds, class_names
+    print("✅ Classes:", labels)
+    return df, labels
 
 
-def compute_class_weights(ds, num_classes: int):
-    counts = np.zeros(num_classes, dtype=np.float64)
-    for _, y in ds.unbatch():
-        idx = int(np.argmax(y.numpy()))
-        counts[idx] += 1
+# ---------- IMAGE LOADING + CROP ----------
+def load_and_crop(path, xmin, ymin, xmax, ymax, label):
+    img = tf.io.read_file(path)
+    img = tf.image.decode_jpeg(img, channels=3)
 
+    xmin = tf.cast(xmin, tf.int32)
+    ymin = tf.cast(ymin, tf.int32)
+    xmax = tf.cast(xmax, tf.int32)
+    ymax = tf.cast(ymax, tf.int32)
+
+    img = img[ymin:ymax, xmin:xmax]
+    img = tf.image.resize(img, IMG_SIZE)
+    img = preprocess_input(img)
+
+    label = tf.one_hot(label, depth=3)
+    return img, label
+
+
+def build_dataset(df, training=True):
+    ds = tf.data.Dataset.from_tensor_slices((
+        df["filepath"].values,
+        df["xmin"].values,
+        df["ymin"].values,
+        df["xmax"].values,
+        df["ymax"].values,
+        df["label_id"].values
+    ))
+
+    ds = ds.map(load_and_crop,
+                num_parallel_calls=tf.data.AUTOTUNE)
+
+    if training:
+        ds = ds.shuffle(1000)
+
+    ds = ds.batch(BATCH_SIZE)
+    ds = ds.prefetch(tf.data.AUTOTUNE)
+    return ds
+
+
+def compute_class_weights(labels, n):
+    counts = np.bincount(labels, minlength=n)
     total = counts.sum()
     weights = {}
-    for i in range(num_classes):
-        if counts[i] == 0:
-            weights[i] = 1.0
-        else:
-            weights[i] = float(total / (num_classes * counts[i]))
-
-    print("✅ Class counts:", counts.tolist())
-    print("✅ Class weights:", weights)
+    for i in range(n):
+        weights[i] = total/(n*counts[i])
+    print("Class counts:",counts)
+    print("Class weights:",weights)
     return weights
 
 
-def build_model(num_classes: int):
+# -------- MODEL --------
+def build_model(num_classes):
     base = MobileNetV2(
         include_top=False,
         weights="imagenet",
-        input_shape=(*IMG_SIZE, 3),
+        input_shape=(*IMG_SIZE,3)
     )
-    base.trainable = False  # Phase 1 freeze
+    base.trainable=False
 
-    inputs = layers.Input(shape=(*IMG_SIZE, 3))
+    inputs = layers.Input(shape=(*IMG_SIZE,3))
     x = base(inputs, training=False)
     x = layers.GlobalAveragePooling2D()(x)
     x = layers.Dropout(0.35)(x)
+
     x = layers.Dense(
         192,
         activation="relu",
-        kernel_regularizer=regularizers.l2(WEIGHT_DECAY),
+        kernel_regularizer=regularizers.l2(WEIGHT_DECAY)
     )(x)
+
     x = layers.Dropout(0.35)(x)
     outputs = layers.Dense(num_classes, activation="softmax")(x)
 
-    model = models.Model(inputs, outputs)
-    return model, base
+    return models.Model(inputs,outputs), base
 
 
+# -------- MAIN --------
 def main():
     tf.random.set_seed(SEED)
 
-    train_ds, val_ds, labels = load_datasets()
-    num_classes = len(labels)
-    class_weights = compute_class_weights(train_ds, num_classes)
+    df, labels = load_dataframe()
+    nclass = len(labels)
 
-    model, base = build_model(num_classes)
+    train_df, val_df = train_test_split(
+        df,
+        test_size=VAL_SPLIT,
+        stratify=df["label_id"],
+        random_state=SEED
+    )
 
-    # Callbacks (NO EarlyStopping)
-    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    train_ds = build_dataset(train_df,True)
+    val_ds = build_dataset(val_df,False)
+
+    class_weights = compute_class_weights(
+        train_df["label_id"].values,
+        nclass
+    )
+
+    model, base = build_model(nclass)
+
+    
+
     cb = [
         callbacks.ModelCheckpoint(
-            filepath=str(MODEL_PATH),
+            MODEL_PATH,
             monitor="val_accuracy",
             save_best_only=True,
-            verbose=1,
+            verbose=1
         ),
         callbacks.ReduceLROnPlateau(
             monitor="val_loss",
             factor=0.5,
             patience=3,
-            min_lr=1e-6,
-            verbose=1,
-        ),
+            verbose=1
+        )
     ]
 
-    # ---------------- Phase 1 ----------------
-    print("\n🚀 Phase 1: Training classifier head (backbone frozen)")
+    # -------- Phase 1 --------
+    print("\n🚀 Phase 1")
     model.compile(
         optimizer=tf.keras.optimizers.Adam(LR),
         loss="categorical_crossentropy",
-        metrics=["accuracy"],
+        metrics=["accuracy"]
     )
 
     model.fit(
         train_ds,
         validation_data=val_ds,
-        epochs=FREEZE_EPOCHS,          # ✅ will run full 15 epochs
+        epochs=FREEZE_EPOCHS,
         class_weight=class_weights,
-        callbacks=cb,
-        verbose=1,
+        callbacks=cb
     )
 
-    # ---------------- Phase 2 ----------------
-    print("\n🚀 Phase 2: Fine-tuning backbone (unfreeze last 34%)")
-    # Unfreeze last ~34% layers except BatchNorm
-    start_unfreeze = int(len(base.layers) * 0.66)
-    for layer in base.layers[start_unfreeze:]:
-        if not isinstance(layer, layers.BatchNormalization):
-            layer.trainable = True
+    # -------- Phase 2 --------
+    print("\n🚀 Phase 2")
+
+    start = int(len(base.layers)*0.66)
+    for layer in base.layers[start:]:
+        if not isinstance(layer,layers.BatchNormalization):
+            layer.trainable=True
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(LR * 0.1),
+        optimizer=tf.keras.optimizers.Adam(LR*0.1),
         loss="categorical_crossentropy",
-        metrics=["accuracy"],
+        metrics=["accuracy"]
     )
 
     model.fit(
         train_ds,
         validation_data=val_ds,
-        epochs=EPOCHS,                # ✅ will run full 100 epochs (Phase 2)
+        epochs=EPOCHS,
         class_weight=class_weights,
-        callbacks=cb,
-        verbose=1,
+        callbacks=cb
     )
 
-    # Save final model too (best already saved by checkpoint)
-    model.save(MODEL_PATH)
-    print("\n✅ Training complete")
-    print("✅ Model saved at:", MODEL_PATH)
-    print("✅ Labels saved at:", LABELS_PATH)
+    model.save(str(MODEL_PATH))
+    print("\n✅ Training Finished")
+    print("Model:",MODEL_PATH)
+    print("Labels:",LABELS_PATH)
 
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()

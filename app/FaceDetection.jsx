@@ -118,7 +118,7 @@ export default function FaceDetection() {
       console.log("🌐 Calling REAL emotion detection API...");
 
       // ✅ FIXED: Call the CORRECT API endpoint from emotion_api.py
-      const response = await fetch("http://192.168.18.240:5000/api/scan-face", {
+      const response = await fetch("http://192.168.1.103:5000/api/scan-face", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -346,7 +346,7 @@ export default function FaceDetection() {
                   await new Promise((resolve) => setTimeout(resolve, 300));
 
                   const response = await fetch(
-                    "http://192.168.18.240:5000/api/working-scan",
+                    "http://192.168.1.103:5000/api/working-scan",
                     {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
